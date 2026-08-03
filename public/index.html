@@ -1,69 +1,92 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>CONAP - Videollamadas</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conasup056 - Chat Aleatorio</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
-body{background:#0f0f0f;color:#fff;height:100vh;display:flex;flex-direction:column}
-header{background:#1a1a1a;padding:12px;text-align:center;border-bottom:2px solid #ff0050}
-.trust{background:#00c85122;border:1px solid #00c851;color:#00ff88;padding:8px;text-align:center;font-size:13px}
-.videos{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px;background:#000}
-video{width:100%;height:100%;background:#222;border-radius:12px;object-fit:cover}
-.controls{padding:12px;display:flex;gap:8px;justify-content:center;background:#1a1a1a}
-button{padding:12px 20px;border:none;border-radius:25px;font-weight:bold;cursor:pointer}
-#next{background:#ff0050;color:#fff} #stop{background:#333;color:#fff}
-#status{text-align:center;padding:6px;font-size:12px;color:#aaa}
+body{margin:0;background:#111;color:white;font-family:sans-serif;display:flex;flex-direction:column;height:100vh}
+#top{padding:10px;background:#1a1a1a;text-align:center}
+#videos{flex:1;display:flex;gap:10px;padding:10px}
+video{flex:1;background:#222;border-radius:12px;object-fit:cover}
+#controls{padding:15px;display:flex;gap:10px;justify-content:center;background:#1a1a1a}
+button{padding:12px 25px;border:0;border-radius:25px;font-weight:bold;cursor:pointer}
+#next{background:#00ff88;color:#000} #stop{background:#ff3b3b;color:#fff}
+#status{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:20px;font-size:13px}
 </style>
 </head>
 <body>
-<header><h2>CONAP 🔥 RANDOM</h2></header>
-<div class="trust">🔒 Conexión P2P Encriptada | 🚫 No guardamos video ni fotos | 👁️ Nadie ve tu IP | Conexión directa tipo WhatsApp</div>
-<div id="status">Conectando al servidor seguro...</div>
-<div class="videos">
+<div id="top">🟢 Conexión Segura y Aleatoria - Conasup056</div>
+<div id="status">Iniciando cámara...</div>
+<div id="videos">
 <video id="local" autoplay muted playsinline></video>
 <video id="remote" autoplay playsinline></video>
 </div>
-<div class="controls">
-<button id="stop">⏹️ Parar</button>
-<button id="next">⏭️ Siguiente ➡️</button>
+<div id="controls">
+<button id="stop">⏹ Parar</button>
+<button id="next">⏩ Siguiente</button>
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const socket=io();
-const localV=document.getElementById('local');
-const remoteV=document.getElementById('remote');
-const status=document.getElementById('status');
-let pc,localStream;
+const socket = io();
+const localVideo = document.getElementById('local');
+const remoteVideo = document.getElementById('remote');
+const status = document.getElementById('status');
+let pc, localStream;
 
 async function init(){
-  localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-  localV.srcObject=localStream;
-  status.innerText="✅ Cámara activa - Seguro y privado";
+  localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  localVideo.srcObject = localStream;
+  status.textContent = "Buscando siguiente...";
+  socket.emit('ready');
 }
+
+function createPC(){
+  pc = new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.onicecandidate = e=>{ if(e.candidate) socket.emit('ice', e.candidate); };
+  pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; status.textContent="✅ Conectado"; };
+}
+
+socket.on('matched', async ()=>{
+  status.textContent="Conectando...";
+  createPC();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit('offer', offer);
+});
+
+socket.on('offer', async (offer)=>{
+  createPC();
+  await pc.setRemoteDescription(offer);
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket.emit('answer', answer);
+});
+
+socket.on('answer', async (answer)=>{
+  await pc.setRemoteDescription(answer);
+});
+
+socket.on('ice', async (c)=>{
+  if(pc) await pc.addIceCandidate(c);
+});
+
+socket.on('next', ()=>{
+  if(pc) pc.close();
+  remoteVideo.srcObject=null;
+  status.textContent="Buscando siguiente...";
+});
+
+document.getElementById('next').onclick = ()=>{
+  if(pc) pc.close();
+  remoteVideo.srcObject=null;
+  status.textContent="Buscando siguiente...";
+  socket.emit('next');
+};
+
+document.getElementById('stop').onclick = ()=>{ location.reload(); };
+
 init();
-
-document.getElementById('next').onclick=()=>{socket.emit('next'); status.innerText="Buscando siguiente..."};
-document.getElementById('stop').onclick=()=>{location.reload()};
-
-socket.on('matched',async()=>{
-  status.innerText="🔥 Conectado! Hablando en P2P privado";
-  pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-  pc.ontrack=e=>remoteV.srcObject=e.streams[0];
-  pc.onicecandidate=e=>{if(e.candidate)socket.emit('ice',e.candidate)};
-  const offer=await pc.createOffer(); await pc.setLocalDescription(offer); socket.emit('offer',offer);
-});
-socket.on('offer',async(o)=>{
-  pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-  pc.ontrack=e=>remoteV.srcObject=e.streams[0];
-  pc.onicecandidate=e=>{if(e.candidate)socket.emit('ice',e.candidate)};
-  await pc.setRemoteDescription(o); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); socket.emit('answer',ans);
-});
-socket.on('answer',async(a)=>{await pc.setRemoteDescription(a)});
-socket.on('ice',async(c)=>{try{await pc.addIceCandidate(c)}catch{}});
 </script>
 </body>
 </html>
