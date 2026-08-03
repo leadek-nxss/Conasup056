@@ -1,38 +1,33 @@
 <!DOCTYPE html>
-<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Conasup</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#0a0a0f;color:#fff;font-family:sans-serif;text-align:center;overflow:hidden;height:100vh;display:flex;flex-direction:column}
-header{padding:10px 15px;display:flex;justify-content:space-between;align-items:center;background:#14141f;border-bottom:1px solid #222}
-.logo{font-weight:bold;letter-spacing:1px}.logo span{color:#8a2be2}
-#s{padding:8px 14px;border-radius:20px;background:#1c1c28;border:1px solid #333;font-size:12px}
+body{margin:0;background:#0a0a0f;color:#fff;font-family:sans-serif;text-align:center;height:100dvh;display:flex;flex-direction:column}
+header{padding:10px 15px;display:flex;justify-content:space-between;align-items:center;background:#14141f;border-bottom:1px solid #222;flex-shrink:0}
+.logo{font-weight:bold}.logo span{color:#8a2be2}
+#s{padding:6px 12px;border-radius:20px;background:#1c1c28;border:1px solid #333;font-size:12px}
 #s.live{border-color:#8a2be2;color:#c8a2ff}
-.videos{flex:1;display:flex;flex-direction:column;gap:6px;padding:6px;background:radial-gradient(circle at top,#1f1440,#0a0a0f)}
-.vid{flex:1;position:relative;border-radius:16px;overflow:hidden;background:#111;border:1px solid #252538}
-.vid video{width:100%;height:100%;object-fit:cover;background:#111}
-.vid::after{content:attr(data-label);position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:8px;font-size:10px;border:1px solid rgba(255,255,255,0.1)}
-.btns{display:flex;gap:8px;padding:10px;background:#12121a;border-top:1px solid #222}
-button{flex:1;padding:14px;border:0;border-radius:12px;font-size:16px;font-weight:bold}
-#next{background:#8a2be2;color:#fff;box-shadow:0 4px 15px rgba(138,43,226,0.4)}
+.videos{flex:1;display:flex;flex-direction:column;gap:6px;padding:6px;overflow:hidden;min-height:0}
+.vid{flex:1;position:relative;border-radius:16px;overflow:hidden;background:#111;border:1px solid #252538;min-height:0}
+.vid video{width:100%;height:100%;object-fit:cover}
+.vid::after{content:attr(data-label);position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:8px;font-size:10px}
+.btns{display:flex;gap:8px;padding:10px 10px 25px 10px;background:#12121a;border-top:1px solid #222;flex-shrink:0; /* AQUI LOS SUBI */}
+button{flex:1;padding:15px;border:0;border-radius:12px;font-size:16px;font-weight:bold}
+#next{background:#8a2be2;color:#fff}
 #stop{background:#222233;color:#aaa;border:1px solid #333}
 #stop.active{background:#ff2e2e;color:#fff}
-@media(min-width:700px){.videos{flex-direction:row}}
 </style>
 </head><body>
-
 <header><div class="logo">CONASUP<span>056</span></div><div id="s">Cargando camara...</div></header>
-
 <div class="videos">
-<div class="vid" data-label="TÚ"><video id="me" autoplay muted playsinline></video></div>
-<div class="vid" data-label="EXTRAÑO"><video id="you" autoplay playsinline></video></div>
+<div class="vid" data-label="TÚ"><video id="me" autoplay muted playsinline style="width:100%;height:100%"></video></div>
+<div class="vid" data-label="EXTRAÑO"><video id="you" autoplay playsinline style="width:100%;height:100%"></video></div>
 </div>
-
 <div class="btns">
 <button id="stop">⏸️ PARAR</button>
 <button id="next">SIGUIENTE >></button>
 </div>
-
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const socket = io();
@@ -42,14 +37,12 @@ const you = document.getElementById('you');
 const stopBtn = document.getElementById('stop');
 let pc, stream;
 let stopped = false;
-
 (async()=>{
   stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
   me.srcObject = stream;
   s.textContent = 'Buscando...';
   socket.emit('ready');
 })();
-
 function newPC(){
   if(pc) pc.close();
   pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
@@ -59,61 +52,4 @@ function newPC(){
     s.textContent = 'Conectado!';
     s.classList.add('live');
   };
-  pc.onicecandidate = e => e.candidate && socket.emit('ice', e.candidate);
-}
-
-socket.on('searching',()=>{ if(stopped) return; s.textContent='Buscando...'; s.classList.remove('live'); you.srcObject=null; });
-
-socket.on('matched', async(d)=>{
-  if(stopped) return;
-  newPC(); s.textContent='Conectado!'; s.classList.add('live');
-  if(d.initiator){
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit('offer', offer);
-  }
-});
-
-socket.on('offer', async(o)=>{
-  if(stopped) return;
-  newPC();
-  await pc.setRemoteDescription(o);
-  const ans = await pc.createAnswer();
-  await pc.setLocalDescription(ans);
-  socket.emit('answer', ans);
-  s.textContent='Conectado!'; s.classList.add('live');
-});
-
-socket.on('answer', async(a)=>{ await pc.setRemoteDescription(a); });
-
-socket.on('ice', async(c)=>{ try{await pc.addIceCandidate(c)}catch(e){} });
-
-socket.on('partner-left',()=>{
-  if(stopped) return;
-  s.textContent='Se fue, buscando otro...'; s.classList.remove('live');
-  you.srcObject=null;
-  socket.emit('ready');
-});
-
-document.getElementById('next').onclick=()=>{
-  if(stopped) return;
-  you.srcObject=null;
-  s.textContent='Buscando siguiente...'; s.classList.remove('live');
-  if(pc) pc.close();
-  socket.emit('next');
-};
-
-stopBtn.onclick=()=>{
-  stopped =!stopped;
-  if(stopped){
-    stopBtn.textContent='▶️ CONTINUAR'; stopBtn.classList.add('active');
-    s.textContent='⏸️ Pausado'; s.classList.remove('live');
-    if(pc) pc.close(); you.srcObject=null;
-    socket.emit('stop');
-  } else {
-    stopBtn.textContent='⏸️ PARAR'; stopBtn.classList.remove('active');
-    s.textContent='Buscando...';
-    socket.emit('ready');
-  }
-};
-</script></body></html>
+  pc.onicecandidate = e => e.candidate && socket.emit
