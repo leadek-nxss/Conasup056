@@ -33,8 +33,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('stop', () => {
+    socket.on('stop', () => {
     if (waiting && waiting.id === socket.id) waiting = null;
+    // Avisa al otro que te fuiste para que no se quede trabado
+    if (socket.partner) {
+      const p = io.sockets.sockets.get(socket.partner);
+      if (p) { p.partner = null; p.emit('partner-left'); }
+      socket.partner = null;
+    }
   });
 
   socket.on('next', () => {
