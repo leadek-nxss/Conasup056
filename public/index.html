@@ -94,11 +94,14 @@ stopBtn.onclick=()=>{
   if(stopped){
     stopBtn.textContent='▶️ CONTINUAR'; stopBtn.classList.add('active');
     s.textContent='⏸️ Pausado'; s.classList.remove('live');
-    if(pc) pc.close(); you.srcObject=null;
+    if(pc) { pc.close(); pc = null; }
+    you.srcObject=null;
     socket.emit('stop');
   } else {
     stopBtn.textContent='⏸️ PARAR'; stopBtn.classList.remove('active');
     s.textContent='Buscando...';
+    you.srcObject=null;
+    if(pc) { pc.close(); pc = null; }
     socket.emit('ready');
   }
 };
