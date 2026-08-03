@@ -1,28 +1,60 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conasup056</title>
-<style>body{margin:0;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;height:100vh}#videos{flex:1;display:flex;gap:8px;padding:8px}video{flex:1;background:#222;border-radius:10px;object-fit:cover}#controls{padding:12px;display:flex;gap:10px;justify-content:center;background:#1a1a1a}button{padding:12px 24px;border-radius:20px;border:0;font-weight:bold}#next{background:#00ff88}#stop{background:#333;color:#fff}#status{text-align:center;padding:8px;background:#000}</style></head><body>
-<div id="status">Iniciando...</div><div id="videos"><video id="local" autoplay muted playsinline></video><video id="remote" autoplay playsinline></video></div><div id="controls"><button id="stop">Parar</button><button id="next">Siguiente</button></div>
-<script src="/socket.io/socket.io.js"></script><script>
-const socket=io();let pc,localStream;
-const localV=document.getElementById('local'),remoteV=document.getElementById('remote'),status=document.getElementById('status');
-async function init(){
- localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
- localV.srcObject=localStream;
- status.textContent="Buscando...";
- socket.emit('ready');
+<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conasup</title>
+<style>body{margin:0;background:#000;color:#fff;font-family:sans-serif;text-align:center}video{width:100%;height:45vh;background:#111;object-fit:cover}button{padding:15px 30px;margin:10px;background:#8a2be2;color:#fff;border:0;border-radius:10px;font-size:18px}</style>
+</head><body>
+<div id="s">Cargando camara...</div>
+<video id="me" autoplay muted playsinline></video>
+<video id="you" autoplay playsinline></video>
+<br><button id="next">SIGUIENTE >></button>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+const s = document.getElementById('s');
+const me = document.getElementById('me');
+const you = document.getElementById('you');
+let pc, stream;
+(async()=>{
+  stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  me.srcObject = stream;
+  s.textContent = 'Buscando...';
+  socket.emit('ready');
+})();
+function newPC(){
+  if(pc) pc.close();
+  pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+  pc.ontrack = e => you.srcObject = e.streams[0];
+  pc.onicecandidate = e => e.candidate && socket.emit('ice', e.candidate);
 }
-function createPC(){
- if(pc) pc.close();
- pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
- localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
- pc.onicecandidate=e=>{if(e.candidate) socket.emit('ice',e.candidate)};
- pc.ontrack=e=>{remoteV.srcObject=e.streams[0]; status.textContent="✅ Conectado - Dale Siguiente para cambiar"};
-}
-socket.on('matched', async()=>{status.textContent="Emparejado, conectando...";createPC();const o=await pc.createOffer();await pc.setLocalDescription(o);socket.emit('offer',o);});
-socket.on('offer', async(o)=>{createPC();await pc.setRemoteDescription(o);const a=await pc.createAnswer();await pc.setLocalDescription(a);socket.emit('answer',a);});
-socket.on('answer', async(a)=>{await pc.setRemoteDescription(a);});
-socket.on('ice', async(c)=>{try{if(pc) await pc.addIceCandidate(c);}catch(e){}});
-socket.on('partner-left', ()=>{if(pc) pc.close(); remoteV.srcObject=null; status.textContent="Se fue, buscando otro..."; socket.emit('ready');});
-document.getElementById('next').onclick=()=>{if(pc) pc.close(); remoteV.srcObject=null; status.textContent="Buscando..."; socket.emit('next');};
-document.getElementById('stop').onclick=()=>location.reload();
-init();
+socket.on('searching',()=>{ s.textContent='Buscando...'; you.srcObject=null; });
+socket.on('matched', async(d)=>{
+  newPC(); s.textContent='Conectado!';
+  if(d.initiator){
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('offer', offer);
+  }
+});
+socket.on('offer', async(o)=>{
+  newPC();
+  await pc.setRemoteDescription(o);
+  const ans = await pc.createAnswer();
+  await pc.setLocalDescription(ans);
+  socket.emit('answer', ans);
+  s.textContent='Conectado!';
+});
+socket.on('answer', async(a)=>{ await pc.setRemoteDescription(a); });
+socket.on('ice', async(c)=>{ try{await pc.addIceCandidate(c)}catch(e){} });
+socket.on('partner-left',()=>{
+  s.textContent='Se fue, buscando otro...';
+  you.srcObject=null;
+  socket.emit('ready');
+});
+document.getElementById('next').onclick=()=>{
+  you.srcObject=null;
+  s.textContent='Buscando siguiente...';
+  if(pc) pc.close();
+  socket.emit('next');
+};
 </script></body></html>
